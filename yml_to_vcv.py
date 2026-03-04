@@ -73,52 +73,41 @@ def try_parse_json(text: str):
         return None
 
 
-def build_hub_mappings(pd: dict, hub_slot: int) -> list:
+def build_hub_mappings(pd: dict, hub_slot: int) -> dict:
     """
-    Translate YML mapped_knobs / mapped_ins / mapped_outs into the flat
-    Mappings list expected by the 4ms VCV Hub module.
+    Translate YML mapped_knobs into the Mappings/KnobSetNames format
+    expected by the 4ms VCV Hub module.
+    Returns a dict with "Mappings" (array of arrays) and "KnobSetNames".
     """
+    NUM_SETS = 8
+    knob_sets = pd.get("mapped_knobs") or []
     mappings = []
+    knob_set_names = []
 
-    for knob_set in pd.get("mapped_knobs") or []:
+    for knob_set in knob_sets[:NUM_SETS]:
+        entries = []
         for mk in knob_set.get("set") or []:
-            mappings.append(
+            entries.append(
                 {
                     "DstModID": mk["module_id"],
                     "DstObjID": mk["param_id"],
-                    "DstObjType": "Knob",
                     "SrcModID": hub_slot,
                     "SrcObjID": mk["panel_knob_id"],
-                    "SrcObjType": "Knob",
+                    "RangeMin": mk.get("min", 0),
+                    "RangeMax": mk.get("max", 1),
+                    "CurveType": mk.get("curve_type", 0),
+                    "AliasName": "",
                 }
             )
+        mappings.append(entries)
+        knob_set_names.append(knob_set.get("name", "") or "")
 
-    for mo in pd.get("mapped_outs") or []:
-        mappings.append(
-            {
-                "DstModID": mo["out"]["module_id"],
-                "DstObjID": mo["out"]["jack_id"],
-                "DstObjType": "OutputJack",
-                "SrcModID": hub_slot,
-                "SrcObjID": mo["panel_jack_id"],
-                "SrcObjType": "OutputJack",
-            }
-        )
+    # Pad to NUM_SETS
+    while len(mappings) < NUM_SETS:
+        mappings.append([])
+        knob_set_names.append("")
 
-    for mi in pd.get("mapped_ins") or []:
-        for in_jack in mi.get("ins") or []:
-            mappings.append(
-                {
-                    "DstModID": in_jack["module_id"],
-                    "DstObjID": in_jack["jack_id"],
-                    "DstObjType": "InputJack",
-                    "SrcModID": hub_slot,
-                    "SrcObjID": mi["panel_jack_id"],
-                    "SrcObjType": "InputJack",
-                }
-            )
-
-    return mappings
+    return {"Mappings": mappings, "KnobSetNames": knob_set_names}
 
 
 def compute_row_assignments(slots: list, int_cables: list, num_rows: int) -> list[int]:
@@ -260,9 +249,7 @@ def convert(yml_path: str, vcv_path: str | None = None, num_rows: int = 3) -> st
 
         if slot_idx == 0:
             hub_data: dict = {"PatchName": patch_name}
-            hub_mappings = build_hub_mappings(pd, slot_idx)
-            if hub_mappings:
-                hub_data["Mappings"] = hub_mappings
+            hub_data.update(build_hub_mappings(pd, slot_idx))
             module["data"] = hub_data
         elif slot_idx in state_by_module:
             module["data"] = state_by_module[slot_idx]

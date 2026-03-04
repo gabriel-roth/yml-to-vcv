@@ -432,30 +432,23 @@
   }
 
   function buildHubMappings(pd, hubSlot) {
-    const mappings = [];
-    for (const ks of (pd.mapped_knobs || [])) {
-      for (const mk of (ks.set || [])) {
-        mappings.push({
-          DstModID: mk.module_id,  DstObjID: mk.param_id,    DstObjType: 'Knob',
-          SrcModID: hubSlot,       SrcObjID: mk.panel_knob_id, SrcObjType: 'Knob',
-        });
-      }
-    }
-    for (const mo of (pd.mapped_outs || [])) {
-      mappings.push({
-        DstModID: mo.out.module_id, DstObjID: mo.out.jack_id,  DstObjType: 'OutputJack',
-        SrcModID: hubSlot,          SrcObjID: mo.panel_jack_id, SrcObjType: 'OutputJack',
-      });
-    }
-    for (const mi of (pd.mapped_ins || [])) {
-      for (const inJack of (mi.ins || [])) {
-        mappings.push({
-          DstModID: inJack.module_id, DstObjID: inJack.jack_id,  DstObjType: 'InputJack',
-          SrcModID: hubSlot,          SrcObjID: mi.panel_jack_id, SrcObjType: 'InputJack',
-        });
-      }
-    }
-    return mappings;
+    const NUM_SETS = 8;
+    const knobSets = (pd.mapped_knobs || []).slice(0, NUM_SETS);
+    const mappings = knobSets.map(ks =>
+      (ks.set || []).map(mk => ({
+        DstModID: mk.module_id,
+        DstObjID: mk.param_id,
+        SrcModID: hubSlot,
+        SrcObjID: mk.panel_knob_id,
+        RangeMin: mk.min ?? 0,
+        RangeMax: mk.max ?? 1,
+        CurveType: mk.curve_type ?? 0,
+        AliasName: '',
+      }))
+    );
+    const knobSetNames = knobSets.map(ks => ks.name || '');
+    while (mappings.length < NUM_SETS) { mappings.push([]); knobSetNames.push(''); }
+    return { Mappings: mappings, KnobSetNames: knobSetNames };
   }
 
   function computeRowAssignments(slots, intCables, numRows) {
@@ -573,9 +566,7 @@
         mod.rightModuleId = parseInt(slots[oi + 1][0]);
 
       if (sid === 0) {
-        const hubData = { PatchName: patchName };
-        const m = buildHubMappings(pd, 0);
-        if (m.length) hubData.Mappings = m;
+        const hubData = { PatchName: patchName, ...buildHubMappings(pd, 0) };
         mod.data = hubData;
       } else if (sByM[sid] !== undefined) {
         mod.data = sByM[sid];
