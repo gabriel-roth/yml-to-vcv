@@ -27,6 +27,9 @@ VCV_VERSION = "2.5.2"
 # for typical patches.
 CONNECTION_BREAK_PENALTY = 1_000_000
 
+# Target HP per row when auto-detecting row count.
+TARGET_ROW_HP = 100
+
 # Load the width lookup table (Plugin:Slug -> HP) from the file next to this script.
 # Resolve symlinks so it works when invoked via ~/bin/yml-to-vcv.
 _WIDTHS_FILE = Path(__file__).resolve().parent / "module_widths.json"
@@ -111,6 +114,12 @@ def build_hub_mappings(pd: dict, hub_slot: int) -> dict:
     return {"Mappings": mappings, "KnobSetNames": knob_set_names}
 
 
+def auto_rows(slots: list) -> int:
+    """Return a row count targeting TARGET_ROW_HP HP per row."""
+    total_hp = sum(module_hp(slug) for _, slug in slots)
+    return max(1, -(-total_hp // TARGET_ROW_HP))  # ceiling division
+
+
 def compute_row_assignments(slots: list, int_cables: list, num_rows: int) -> list[int]:
     """
     Return a list of row indices (one per slot) determined by DP.
@@ -192,7 +201,7 @@ def compute_row_assignments(slots: list, int_cables: list, num_rows: int) -> lis
     return assignments
 
 
-def convert(yml_path: str, vcv_path: str | None = None, num_rows: int = 3) -> str:
+def convert(yml_path: str, vcv_path: str | None = None, num_rows: int | None = None) -> str:
     """
     Convert a MetaModule YML patch file to a VCV Rack .vcv file.
     Returns the path of the written file.
@@ -211,6 +220,9 @@ def convert(yml_path: str, vcv_path: str | None = None, num_rows: int = 3) -> st
 
     raw_slugs = pd.get("module_slugs") or {}
     slots = sorted(raw_slugs.items(), key=lambda kv: int(kv[0]))
+
+    if num_rows is None:
+        num_rows = auto_rows(slots)
 
     params_by_module: dict[int, dict[int, float]] = {}
     for sk in pd.get("static_knobs") or []:
@@ -312,9 +324,9 @@ def main():
     parser.add_argument(
         "-r", "--rows",
         type=int,
-        default=3,
+        default=None,
         metavar="N",
-        help="Number of rows to lay modules across (default: 3)",
+        help="Number of rows to lay modules across (default: auto)",
     )
     args = parser.parse_args()
 
