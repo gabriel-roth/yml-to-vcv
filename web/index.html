@@ -600,6 +600,10 @@
   }
 
   function setFile(file) {
+    if (!/\.ya?ml$/i.test(file.name)) {
+      showError('Not a valid .yml file.');
+      return;
+    }
     currentFile = file;
     fileBadge.textContent = file.name;
     fileBadge.classList.add('visible');

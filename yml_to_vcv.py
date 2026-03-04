@@ -40,8 +40,13 @@ except Exception as e:
     MODULE_WIDTHS = {}
 
 
+_unknown_slugs: set[str] = set()
+
 def module_hp(slug: str) -> int:
     """Return the HP width for a 'Plugin:Model' slug, or DEFAULT_HP if unknown."""
+    if slug not in MODULE_WIDTHS and slug not in _unknown_slugs:
+        _unknown_slugs.add(slug)
+        print(f"Warning: unknown module '{slug}', assuming {DEFAULT_HP} HP", file=sys.stderr)
     return MODULE_WIDTHS.get(slug, DEFAULT_HP)
 
 
@@ -286,7 +291,7 @@ def convert(yml_path: str, vcv_path: str | None = None, num_rows: int | None = N
     for cable in int_cables:
         out_jack = cable["out"]
         raw_color = cable.get("color", 61865)
-        hex_color = rgb565_to_hex(raw_color) if isinstance(raw_color, int) else raw_color
+        hex_color = rgb565_to_hex(raw_color) if isinstance(raw_color, int) else (raw_color or rgb565_to_hex(61865))
         for in_jack in cable.get("ins") or []:
             vcv_cables.append(
                 {
