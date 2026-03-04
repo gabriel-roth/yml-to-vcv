@@ -393,6 +393,23 @@
     return i !== -1 ? [slug.slice(0, i), slug.slice(i + 1)] : [slug, slug];
   }
 
+  // KNOWN LIMITATION: param value scaling
+  //
+  // MetaModule saves all params as normalized 0-1 values (via ParamQuantity::getScaledValue(),
+  // which maps the param's native [minValue, maxValue] range onto [0, 1]). VCV Rack's
+  // paramsFromJson() loads params as native values (calling setValue(), not setScaledValue()).
+  //
+  // For params with native range [0, 1] — the vast majority of audio knobs — the normalized
+  // value equals the native value, so conversion is correct. But for params with other ranges
+  // (e.g. an enum selector configParam(0, 2, 0, ...) with three modes), the normalized value
+  // will be wrong in VCV. Example: MetaModule normalized 1.0 → VCV native 1.0, but the correct
+  // native value for "mode 2 of 3" is 2.0.
+  //
+  // The Meta Hub in VCV works around this by using paramQuantity->setScaledValue(), which has
+  // access to the param's declared range at runtime. The converter has no such access — it would
+  // need to instantiate each VCV plugin to query param ranges, which isn't feasible here.
+  // Special-casing individual modules is also wrong since it can't be done completely.
+
   function buildParams(slotIdx, pByM) {
     const pm = pByM[slotIdx] || {};
     return Object.keys(pm)
@@ -493,6 +510,7 @@
 
     const pd        = data.PatchData;
     const patchName = pd.patch_name || 'Untitled';
+    const patchDesc = pd.description || '';
 
     const rawSlugs = pd.module_slugs || {};
     const slots    = Object.entries(rawSlugs).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
@@ -540,7 +558,7 @@
         mod.rightModuleId = parseInt(slots[oi + 1][0]);
 
       if (sid === 0) {
-        const hubData = { PatchName: patchName, ...buildHubMappings(pd, 0) };
+        const hubData = { PatchName: patchName, PatchDesc: patchDesc, ...buildHubMappings(pd, 0) };
         mod.data = hubData;
       } else if (sByM[sid] !== undefined) {
         mod.data = sByM[sid];
@@ -566,6 +584,33 @@
           inputModuleId:  inJack.module_id,
           inputId:        inJack.jack_id,
           color:          hexColor,
+        });
+      }
+    }
+
+    // mapped_outs: module output → Hub input (panel output jack)
+    for (const mo of (pd.mapped_outs || [])) {
+      if (!mo.out) continue;
+      vcvCables.push({
+        id: cableId++,
+        outputModuleId: mo.out.module_id,
+        outputId:       mo.out.jack_id,
+        inputModuleId:  0,
+        inputId:        mo.panel_jack_id,
+        color:          '#f6a623',
+      });
+    }
+
+    // mapped_ins: Hub output (panel input jack) → module inputs (fan-out)
+    for (const mi of (pd.mapped_ins || [])) {
+      for (const inJack of (mi.ins || [])) {
+        vcvCables.push({
+          id: cableId++,
+          outputModuleId: 0,
+          outputId:       mi.panel_jack_id,
+          inputModuleId:  inJack.module_id,
+          inputId:        inJack.jack_id,
+          color:          '#f6a623',
         });
       }
     }
@@ -622,7 +667,12 @@
     try {
       const numRows = rowCount.value === 'auto' ? null : parseInt(rowCount.value);
       const patch   = convert(currentText, numRows);
-      const json    = JSON.stringify(patch, null, 2);
+      // Ensure RangeMin/RangeMax are JSON reals, not integers.
+      // The Hub's jansson parser uses json_is_real(), which returns false for
+      // JSON integers, causing reversed ranges (e.g. min=1,max=0) to be flipped.
+      const json    = JSON.stringify(patch, null, 2)
+        .replace(/"RangeMin": (\d+)(?![\.\d])/g, '"RangeMin": $1.0')
+        .replace(/"RangeMax": (\d+)(?![\.\d])/g, '"RangeMax": $1.0');
 
       // Revoke previous blob to avoid memory leak.
       if (blobUrl) URL.revokeObjectURL(blobUrl);
