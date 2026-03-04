@@ -32,7 +32,8 @@ CONNECTION_BREAK_PENALTY = 1_000_000
 _WIDTHS_FILE = Path(__file__).resolve().parent / "module_widths.json"
 try:
     MODULE_WIDTHS: dict[str, int] = json.loads(_WIDTHS_FILE.read_text())
-except Exception:
+except Exception as e:
+    print(f"Warning: could not load {_WIDTHS_FILE}: {e}", file=sys.stderr)
     MODULE_WIDTHS = {}
 
 
@@ -173,6 +174,8 @@ def compute_row_assignments(slots: list, int_cables: list, num_rows: int) -> lis
     i = n
     for j in range(num_rows, 0, -1):
         k = parent[j][i]
+        # k == 0 means "row starts at the beginning" — already covered by the
+        # [0] prepended below, so only collect interior break points.
         if k > 0:
             row_starts.append(k)
         i = k
@@ -195,7 +198,13 @@ def convert(yml_path: str, vcv_path: str | None = None, num_rows: int = 3) -> st
     Returns the path of the written file.
     """
     with open(yml_path, "r") as f:
-        data = yaml.safe_load(f)
+        try:
+            data = yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            raise ValueError(f"Could not parse YAML: {e}") from e
+
+    if not isinstance(data, dict) or "PatchData" not in data:
+        raise ValueError("Invalid patch file: missing top-level 'PatchData' key.")
 
     pd = data["PatchData"]
     patch_name = pd.get("patch_name", Path(yml_path).stem)
@@ -309,7 +318,11 @@ def main():
     )
     args = parser.parse_args()
 
-    out = convert(args.yml, args.vcv, num_rows=args.rows)
+    try:
+        out = convert(args.yml, args.vcv, num_rows=args.rows)
+    except (ValueError, OSError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
     print(f"Wrote {out}")
 
 
