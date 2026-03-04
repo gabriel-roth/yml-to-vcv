@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MetaModule &#x2192; VCV Rack</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    html { font-size: 120%; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:             #0e0d0c;
+      --surface:        #191817;
+      --surface-hi:     #222120;
+      --border:         #2d2b29;
+      --border-mid:     #3d3b38;
+      --accent:         #c49a3c;
+      --accent-dim:     rgba(196, 154, 60, 0.10);
+      --text:           #e2dbd0;
+      --text-mid:       #bab2a8;
+      --text-dim:       #908880;
+      --success:        #4a7a5a;
+      --success-bg:     rgba(74, 122, 90, 0.12);
+      --success-border: rgba(74, 122, 90, 0.35);
+      --error-bg:       rgba(138, 64, 64, 0.12);
+      --error-border:   rgba(138, 64, 64, 0.35);
+      --font:           'IBM Plex Mono', monospace;
+      --radius:         5px;
+      --ease:           180ms ease;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 52px 20px 72px;
+    }
+
+    /* Dot-grid atmosphere */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, #2d2b29 1px, transparent 1px);
+      background-size: 22px 22px;
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 500px;
+    }
+
+    header {
+      margin-bottom: 32px;
+    }
+
+    .title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--text);
+      margin-bottom: 7px;
+    }
+
+    .title .arrow {
+      color: var(--accent);
+      margin: 0 3px;
+    }
+
+    .subtitle {
+      font-size: 0.58rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 26px;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      position: relative;
+      border: 1px dashed var(--border-mid);
+      border-radius: var(--radius);
+      padding: 38px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--ease), background var(--ease);
+      user-select: none;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      display: block;
+      width: 32px;
+      height: 32px;
+      margin: 0 auto 12px;
+      color: var(--text-dim);
+      transition: color var(--ease);
+    }
+
+    .drop-zone:hover .drop-icon,
+    .drop-zone.dragover .drop-icon {
+      color: var(--accent);
+    }
+
+    .drop-label {
+      font-size: 0.82rem;
+      color: var(--text-mid);
+      margin-bottom: 4px;
+    }
+
+    .drop-hint {
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      letter-spacing: 0.03em;
+    }
+
+    .file-badge {
+      display: none;
+      margin-top: 14px;
+      font-size: 0.75rem;
+      color: var(--accent);
+      letter-spacing: 0.01em;
+    }
+
+    .file-badge.visible {
+      display: block;
+    }
+
+    /* Options */
+    .options {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .options label {
+      font-size: 0.72rem;
+      color: var(--text-mid);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    select {
+      font-family: var(--font);
+      font-size: 0.8rem;
+      padding: 7px 28px 7px 10px;
+      background: var(--surface-hi);
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='5' viewBox='0 0 9 5'%3E%3Cpath d='M0 0l4.5 5L9 0z' fill='%235a5550'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      transition: border-color var(--ease);
+    }
+
+    select:hover, select:focus {
+      border-color: var(--border-mid);
+      outline: none;
+    }
+
+    /* Convert button */
+    .convert-btn {
+      font-family: var(--font);
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      margin-top: 18px;
+      width: 100%;
+      padding: 11px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background var(--ease), color var(--ease);
+    }
+
+    .convert-btn:hover:not(:disabled) {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    .convert-btn:disabled {
+      color: var(--text-dim);
+      border-color: var(--border);
+      cursor: not-allowed;
+    }
+
+    /* Download area */
+    .download-area {
+      margin-top: 18px;
+      padding: 14px 16px;
+      background: var(--success-bg);
+      border: 1px solid var(--success-border);
+      border-radius: var(--radius);
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      animation: fadeIn 200ms ease;
+    }
+
+    .download-area.visible {
+      display: flex;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .download-info {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .check-icon {
+      color: #5a9f70;
+      flex-shrink: 0;
+    }
+
+    .download-name {
+      font-size: 0.78rem;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .download-btn {
+      font-family: var(--font);
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      background: var(--success);
+      color: #d0e8d8;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      text-decoration: none;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: opacity var(--ease);
+    }
+
+    .download-btn:hover {
+      opacity: 0.82;
+    }
+
+    /* Error area */
+    .error-area {
+      margin-top: 18px;
+      padding: 13px 16px;
+      background: var(--error-bg);
+      border: 1px solid var(--error-border);
+      border-radius: var(--radius);
+      font-size: 0.76rem;
+      color: #c07878;
+      line-height: 1.65;
+      display: none;
+    }
+
+    .error-area.visible {
+      display: block;
+    }
+
+    footer {
+      margin-top: 26px;
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    footer a {
+      color: var(--text-dim);
+      text-decoration: none;
+      transition: color var(--ease);
+    }
+
+    footer a:hover {
+      color: var(--text-mid);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1 class="title">MetaModule <span class="arrow">&gt;</span> VCV Rack Converter</h1>
+      <p class="subtitle">Convert a MetaModule .yml patch to a VCV Rack 2 .vcv file</p>
+    </header>
+
+    <div class="card">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept=".yml,.yaml">
+        <svg class="drop-icon" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="1.25"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <div class="drop-label">Drop a .yml patch file here</div>
+        <div class="drop-hint">or click to browse</div>
+        <div class="file-badge" id="fileBadge"></div>
+      </div>
+
+      <div class="options">
+        <label for="rowCount">Rows</label>
+        <select id="rowCount">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3" selected>3</option>
+          <option value="4">4</option>
+          <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+        </select>
+      </div>
+
+      <button class="convert-btn" id="convertBtn" disabled>Convert</button>
+
+      <div class="download-area" id="downloadArea">
+        <div class="download-info">
+          <svg class="check-icon" width="15" height="15" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          <span class="download-name" id="downloadName"></span>
+        </div>
+        <a class="download-btn" id="downloadLink" download>Download .vcv</a>
+      </div>
+
+      <div class="error-area" id="errorArea"></div>
+    </div>
+
+    <footer>
+      <a href="https://gabrielroth.com">gabrielroth.com</a>
+      &nbsp;&mdash;&nbsp;runs entirely in your browser
+    </footer>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <script>
+  'use strict';
+
+  // ─── Constants ───────────────────────────────────────────────────────────────
+  const DEFAULT_HP             = 8;
+  const VCV_VERSION            = '2.5.2';
+  const CONNECTION_BREAK_PENALTY = 1_000_000;
+
+  // ─── Module width lookup ──────────────────────────────────────────────────────
+  let moduleWidths = {};
+  fetch('./module_widths.json')
+    .then(r => r.json())
+    .then(d => { moduleWidths = d; })
+    .catch(() => { /* fall back to DEFAULT_HP */ });
+
+  function moduleHp(slug) {
+    return moduleWidths[slug] ?? DEFAULT_HP;
+  }
+
+  // ─── Conversion helpers ───────────────────────────────────────────────────────
+
+  function rgb565ToHex(c) {
+    const r = Math.floor(((c >> 11) & 0x1F) * 255 / 31);
+    const g = Math.floor(((c >>  5) & 0x3F) * 255 / 63);
+    const b = Math.floor(( c        & 0x1F) * 255 / 31);
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+
+  function parseSlug(slug) {
+    const i = slug.indexOf(':');
+    return i !== -1 ? [slug.slice(0, i), slug.slice(i + 1)] : [slug, slug];
+  }
+
+  function buildParams(slotIdx, pByM) {
+    const pm = pByM[slotIdx] || {};
+    return Object.keys(pm)
+      .map(Number)
+      .sort((a, b) => a - b)
+      .map(pid => ({ id: pid, value: pm[pid] }));
+  }
+
+  function tryParseJson(text) {
+    try { return JSON.parse(text); } catch { return null; }
+  }
+
+  function buildHubMappings(pd, hubSlot) {
+    const mappings = [];
+    for (const ks of (pd.mapped_knobs || [])) {
+      for (const mk of (ks.set || [])) {
+        mappings.push({
+          DstModID: mk.module_id,  DstObjID: mk.param_id,    DstObjType: 'Knob',
+          SrcModID: hubSlot,       SrcObjID: mk.panel_knob_id, SrcObjType: 'Knob',
+        });
+      }
+    }
+    for (const mo of (pd.mapped_outs || [])) {
+      mappings.push({
+        DstModID: mo.out.module_id, DstObjID: mo.out.jack_id,  DstObjType: 'OutputJack',
+        SrcModID: hubSlot,          SrcObjID: mo.panel_jack_id, SrcObjType: 'OutputJack',
+      });
+    }
+    for (const mi of (pd.mapped_ins || [])) {
+      for (const inJack of (mi.ins || [])) {
+        mappings.push({
+          DstModID: inJack.module_id, DstObjID: inJack.jack_id,  DstObjType: 'InputJack',
+          SrcModID: hubSlot,          SrcObjID: mi.panel_jack_id, SrcObjType: 'InputJack',
+        });
+      }
+    }
+    return mappings;
+  }
+
+  function computeRowAssignments(slots, intCables, numRows) {
+    const n = slots.length;
+    if (n === 0) return [];
+    numRows = Math.min(numRows, n);
+
+    const hps    = slots.map(([, slug]) => moduleHp(slug));
+    const prefix = new Array(n + 1).fill(0);
+    for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + hps[i];
+    const target = prefix[n] / numRows;
+
+    // Build set of adjacent order-index pairs sharing a cable.
+    const slotToOrder = {};
+    slots.forEach(([idx], i) => { slotToOrder[parseInt(idx)] = i; });
+    const connAdj = new Set();
+    for (const cable of (intCables || [])) {
+      const a = slotToOrder[cable.out.module_id];
+      for (const inJack of (cable.ins || [])) {
+        const b = slotToOrder[inJack.module_id];
+        if (a !== undefined && b !== undefined && Math.abs(a - b) === 1) {
+          connAdj.add(`${Math.min(a, b)},${Math.max(a, b)}`);
+        }
+      }
+    }
+
+    const breakPenalty = at => connAdj.has(`${at - 1},${at}`) ? CONNECTION_BREAK_PENALTY : 0;
+    const widthCost = (s, e) => { const w = prefix[e] - prefix[s]; return (w - target) ** 2; };
+
+    // dp[j][i] = min cost to place first i modules in j rows
+    const dp  = Array.from({ length: numRows + 1 }, () => new Array(n + 1).fill(Infinity));
+    const par = Array.from({ length: numRows + 1 }, () => new Array(n + 1).fill(-1));
+    dp[0][0] = 0;
+
+    for (let j = 1; j <= numRows; j++) {
+      for (let i = j; i <= n; i++) {
+        for (let k = j - 1; k < i; k++) {
+          const pen  = k > 0 ? breakPenalty(k) : 0;
+          const cost = dp[j - 1][k] + widthCost(k, i) + pen;
+          if (cost < dp[j][i]) { dp[j][i] = cost; par[j][i] = k; }
+        }
+      }
+    }
+
+    // Backtrack to recover row start indices.
+    const rowStarts = [];
+    let i = n;
+    for (let j = numRows; j > 0; j--) {
+      const k = par[j][i];
+      if (k > 0) rowStarts.push(k);
+      i = k;
+    }
+    rowStarts.reverse();
+    rowStarts.unshift(0);
+
+    const assignments = new Array(n).fill(0);
+    for (let r = 0; r < rowStarts.length; r++) {
+      const start = rowStarts[r];
+      const end   = r + 1 < rowStarts.length ? rowStarts[r + 1] : n;
+      for (let ii = start; ii < end; ii++) assignments[ii] = r;
+    }
+    return assignments;
+  }
+
+  function convert(yamlText, numRows) {
+    const data = jsyaml.load(yamlText);
+    if (!data || !data.PatchData) throw new Error('Invalid file: missing PatchData key');
+
+    const pd        = data.PatchData;
+    const patchName = pd.patch_name || 'Untitled';
+
+    const rawSlugs = pd.module_slugs || {};
+    const slots    = Object.entries(rawSlugs).sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+
+    // params: {module_id: {param_id: value}}
+    const pByM = {};
+    for (const sk of (pd.static_knobs || [])) {
+      if (!pByM[sk.module_id]) pByM[sk.module_id] = {};
+      pByM[sk.module_id][sk.param_id] = sk.value;
+    }
+
+    // module states: {module_id: parsed_json}
+    const sByM = {};
+    for (const ms of (pd.vcvModuleStates || [])) {
+      const parsed = tryParseJson(ms.data || '');
+      if (parsed !== null) sByM[ms.module_id] = parsed;
+    }
+
+    const bypassed  = new Set(pd.bypassed_modules || []);
+    const intCables = pd.int_cables || [];
+
+    const rowAssign = computeRowAssignments(slots, intCables, numRows);
+    const xByRow    = {};
+    const vcvModules = [];
+
+    slots.forEach(([rawKey, slug], oi) => {
+      const sid          = parseInt(rawKey);
+      const [plugin, model] = parseSlug(slug);
+      const row          = rowAssign[oi];
+
+      if (xByRow[row] === undefined) xByRow[row] = 0;
+      const xPos  = xByRow[row];
+      xByRow[row] = xPos + moduleHp(slug);
+
+      const mod = {
+        id: sid, plugin, version: '2.0.0', model,
+        params: buildParams(sid, pByM),
+        pos: [xPos, row],
+      };
+
+      // Adjacency links — only within the same row.
+      if (oi > 0 && rowAssign[oi - 1] === row)
+        mod.leftModuleId  = parseInt(slots[oi - 1][0]);
+      if (oi < slots.length - 1 && rowAssign[oi + 1] === row)
+        mod.rightModuleId = parseInt(slots[oi + 1][0]);
+
+      if (sid === 0) {
+        const hubData = { PatchName: patchName };
+        const m = buildHubMappings(pd, 0);
+        if (m.length) hubData.Mappings = m;
+        mod.data = hubData;
+      } else if (sByM[sid] !== undefined) {
+        mod.data = sByM[sid];
+      }
+
+      if (bypassed.has(sid)) mod.bypass = true;
+      vcvModules.push(mod);
+    });
+
+    // Build cables — fan-out: one YML cable → one VCV entry per input.
+    const vcvCables = [];
+    let cableId = 1000;
+    for (const cable of intCables) {
+      const rawColor = cable.color;
+      const hexColor = typeof rawColor === 'number'
+        ? rgb565ToHex(rawColor)
+        : (rawColor || rgb565ToHex(61865));
+      for (const inJack of (cable.ins || [])) {
+        vcvCables.push({
+          id: cableId++,
+          outputModuleId: cable.out.module_id,
+          outputId:       cable.out.jack_id,
+          inputModuleId:  inJack.module_id,
+          inputId:        inJack.jack_id,
+          color:          hexColor,
+        });
+      }
+    }
+
+    return { version: VCV_VERSION, modules: vcvModules, cables: vcvCables };
+  }
+
+  // ─── UI ───────────────────────────────────────────────────────────────────────
+
+  const dropZone    = document.getElementById('dropZone');
+  const fileInput   = document.getElementById('fileInput');
+  const fileBadge   = document.getElementById('fileBadge');
+  const rowCount    = document.getElementById('rowCount');
+  const convertBtn  = document.getElementById('convertBtn');
+  const downloadArea = document.getElementById('downloadArea');
+  const downloadName = document.getElementById('downloadName');
+  const downloadLink = document.getElementById('downloadLink');
+  const errorArea   = document.getElementById('errorArea');
+
+  let currentFile = null;
+  let currentText = null;
+  let blobUrl     = null;
+
+  function showError(msg) {
+    errorArea.textContent = msg;
+    errorArea.classList.add('visible');
+    downloadArea.classList.remove('visible');
+  }
+
+  function hideMessages() {
+    errorArea.classList.remove('visible');
+    downloadArea.classList.remove('visible');
+  }
+
+  function setFile(file) {
+    currentFile = file;
+    fileBadge.textContent = file.name;
+    fileBadge.classList.add('visible');
+    convertBtn.disabled = false;
+    hideMessages();
+
+    const reader = new FileReader();
+    reader.onload  = e => { currentText = e.target.result; };
+    reader.onerror = () => showError('Could not read the file.');
+    reader.readAsText(file);
+  }
+
+  fileInput.addEventListener('change', e => {
+    if (e.target.files[0]) setFile(e.target.files[0]);
+  });
+
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) setFile(file);
+  });
+
+  convertBtn.addEventListener('click', () => {
+    if (!currentText) { showError('File not yet loaded — try again in a moment.'); return; }
+    hideMessages();
+
+    try {
+      const numRows = parseInt(rowCount.value);
+      const patch   = convert(currentText, numRows);
+      const json    = JSON.stringify(patch, null, 2);
+
+      // Revoke previous blob to avoid memory leak.
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      blobUrl = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+
+      const outName = currentFile.name.replace(/\.ya?ml$/i, '') + '.vcv';
+      downloadName.textContent = outName;
+      downloadLink.href        = blobUrl;
+      downloadLink.download    = outName;
+      downloadArea.classList.add('visible');
+    } catch (err) {
+      showError('Conversion failed: ' + err.message);
+    }
+  });
+  </script>
+</body>
+</html>
