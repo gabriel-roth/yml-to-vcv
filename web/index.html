@@ -522,11 +522,15 @@
       pByM[sk.module_id][sk.param_id] = sk.value;
     }
 
-    // module states: {module_id: parsed_json}
+    // module states: {module_id: parsed_json_or_string}
     const sByM = {};
     for (const ms of (pd.vcvModuleStates || [])) {
-      const parsed = tryParseJson(ms.data || '');
-      if (parsed !== null) sByM[ms.module_id] = parsed;
+      const raw = ms.data || '';
+      if (!raw) continue;
+      const parsed = tryParseJson(raw);
+      // If data isn't valid JSON it's a plain string (e.g. a file path for BWAVP).
+      // VCV's dataFromJson receives a json_string in that case, so store it as-is.
+      sByM[ms.module_id] = parsed !== null ? parsed : raw;
     }
 
     const bypassed  = new Set(pd.bypassed_modules || []);
