@@ -132,6 +132,29 @@
     try { return JSON.parse(text); } catch { return null; }
   }
 
+  // Derive Hub knob positions from mapped param values.
+  // MetaModule doesn't save hub knob values to static_knobs, so we back-calculate
+  // from each mapped param's normalized value and the mapping's RangeMin/RangeMax.
+  // hub_knob = clamp((param_value - RangeMin) / (RangeMax - RangeMin), 0, 1)
+  function buildHubParams(pd, pByM) {
+    const hubParams = {};
+    for (const ks of (pd.mapped_knobs || [])) {
+      for (const mk of (ks.set || [])) {
+        if (hubParams[mk.panel_knob_id] !== undefined) continue; // first mapping wins
+        const paramVal = (pByM[mk.module_id] || {})[mk.param_id];
+        if (paramVal === undefined) continue;
+        const rMin = mk.min ?? 0;
+        const rMax = mk.max ?? 1;
+        const hubVal = rMax !== rMin
+          ? Math.max(0, Math.min(1, (paramVal - rMin) / (rMax - rMin)))
+          : 0;
+        hubParams[mk.panel_knob_id] = hubVal;
+      }
+    }
+    return Object.keys(hubParams).map(Number).sort((a, b) => a - b)
+      .map(id => ({ id, value: hubParams[id] }));
+  }
+
   function buildHubMappings(pd, hubSlot) {
     const NUM_SETS = 8;
     const knobSets = (pd.mapped_knobs || []).slice(0, NUM_SETS);
@@ -261,7 +284,7 @@
 
       const mod = {
         id: sid, plugin, version: '2.0.0', model,
-        params: buildParams(sid, pByM, slug),
+        params: sid === 0 ? buildHubParams(pd, pByM) : buildParams(sid, pByM, slug),
         pos: [xPos, row],
       };
 
