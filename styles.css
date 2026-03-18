@@ -286,3 +286,13 @@ footer a {
 footer a:hover {
   color: var(--text-mid);
 }
+
+.version-badge {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  font-size: 10px;
+  opacity: 0.35;
+  font-family: monospace;
+  pointer-events: none;
+}
