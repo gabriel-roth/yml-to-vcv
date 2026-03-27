@@ -311,6 +311,31 @@ function convert(yamlText, numRows) {
     }
   }
 
+  // Append AudioInterface2 if the patch suggests a sample rate or block size.
+  const suggestedSr = pd.suggested_samplerate || 0;
+  const suggestedBs = pd.suggested_blocksize  || 0;
+  if (suggestedSr || suggestedBs) {
+    const audioXPos = xByRow[0] || 0;
+    vcvModules.push({
+      id: 9999,
+      plugin: 'Core',
+      version: '2.6.6',
+      model: 'AudioInterface2',
+      params: [{ id: 0, value: 1.0 }],
+      data: {
+        audio: {
+          driver: 5,
+          sampleRate: suggestedSr || 0.0,
+          blockSize:  suggestedBs || 0,
+          inputOffset: 0,
+          outputOffset: 0,
+        },
+        dcFilter: true,
+      },
+      pos: [audioXPos, 0],
+    });
+  }
+
   return { patch: { version: VCV_VERSION, modules: vcvModules, cables: vcvCables }, rawsByM };
 }
 
