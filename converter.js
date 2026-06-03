@@ -21,6 +21,11 @@ function autoRows(slots) {
 // ─── Param range table (populated at load from param_ranges.json) ────────────
 let paramRanges = {};
 
+// ─── Brand aliases (populated at load from brand_aliases.json) ───────────────
+// Maps alternate brand slugs to canonical VCV slugs.
+// e.g., "JWModules" → "JW-Modules"
+let brandAliases = {};
+
 // ─── Conversion helpers ───────────────────────────────────────────────────────
 
 function rgb565ToHex(c) {
@@ -36,6 +41,8 @@ function parseSlug(slug) {
     let plugin = slug.slice(0, i).trim();
     const model = slug.slice(i + 1).trim();
     if (plugin === 'RackCore') plugin = 'Core';
+    // Apply brand alias mapping (e.g., "JWModules" → "JW-Modules")
+    if (brandAliases[plugin]) plugin = brandAliases[plugin];
     return [plugin, model];
   }
   // Bare slug (no plugin prefix) — assume 4msCompany built-in
@@ -46,7 +53,16 @@ function normalizeSlug(slug) {
   // Airwindows modules in MetaModule are separate (e.g. Airwindows:Galactic), but
   // in VCV they're all one module (Airwin2Rack:Airwin2Rack) with the effect selected via data.
   if (slug.startsWith('Airwindows:')) return 'Airwin2Rack:Airwin2Rack';
-  return slug.includes(':') ? slug : '4msCompany:' + slug;
+
+  // Apply brand alias to the plugin prefix (e.g., "JWModules:GridSeq" → "JW-Modules:GridSeq")
+  const i = slug.indexOf(':');
+  if (i !== -1) {
+    const plugin = slug.slice(0, i);
+    const model = slug.slice(i + 1);
+    const canonical = brandAliases[plugin] || plugin;
+    return canonical + ':' + model;
+  }
+  return '4msCompany:' + slug;
 }
 
 // Param value scaling: MetaModule saves all params as normalized 0-1 values
@@ -339,7 +355,7 @@ function convert(yamlText, numRows) {
   return { patch: { version: VCV_VERSION, modules: vcvModules, cables: vcvCables }, rawsByM };
 }
 
-// ─── Load param range table ───────────────────────────────────────────────────
+// ─── Load lookup tables ───────────────────────────────────────────────────────
 fetch('param_ranges.json')
   .then(r => r.ok ? r.json() : Promise.reject())
   .then(data => { paramRanges = data; })
@@ -348,6 +364,11 @@ fetch('param_ranges.json')
 fetch('module_widths.json')
   .then(r => r.ok ? r.json() : Promise.reject())
   .then(data => { moduleWidths = data; })
+  .catch(() => {});  // silently ignore (e.g. file:// context)
+
+fetch('brand_aliases.json')
+  .then(r => r.ok ? r.json() : Promise.reject())
+  .then(data => { brandAliases = data; })
   .catch(() => {});  // silently ignore (e.g. file:// context)
 
 // ─── UI ───────────────────────────────────────────────────────────────────────
