@@ -274,6 +274,14 @@ function convert(yamlText, numRows) {
       mod.data = `__RAW_STATE_${sid}__`;  // replaced verbatim after stringify
     } else if (sByM[sid] !== undefined) {
       mod.data = sByM[sid];
+    } else if (rawSlug.startsWith('Airwindows:')) {
+      // No saved state blob, but the slug names the effect (e.g.
+      // Airwindows:BitShiftGain). All Airwindows map to one VCV module whose FX
+      // is chosen via data; without this, Airwin2Rack defaults to Galactic.
+      mod.data = {
+        airwindowSelectedFX: rawSlug.slice(rawSlug.indexOf(':') + 1),
+        polyphonyMode: 0, lockedType: false, randomizeFX: false, blockSize: 4,
+      };
     }
 
     if (bypassed.has(sid)) mod.bypass = true;
